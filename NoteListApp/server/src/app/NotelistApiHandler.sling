@@ -1,0 +1,64 @@
+import jk.http.client
+import jk.http.worker
+
+class is HTTPRPCRouter #webapi2:
+
+model NoteRequest
+{
+    id as string
+    name as string
+    description as string
+}
+
+var db as NotelistDatabase
+var cors = NotelistConfig.getCorsUtil()
+
+func getNoteDatabase as NotelistDatabase
+{
+    if not db {
+        db = NotelistDatabase.forContext(getCtx())
+        db.updateNoteTables()
+    }
+    return db
+}
+
+func postProcess(req as HTTPWorkerRequest, resp as HTTPWorkerResponse) override:
+    cors.handleWorkerRequest(req, resp)
+
+GET "/notes"
+{
+    var notes = assert getNoteDatabase().getNotes()
+    sendOk notes
+}
+
+POST "/note"
+{
+    var requestData = assert NoteRequest.forJsonString(req.getBodyString()):
+        sendError "invalidRequest"
+    var note = new NotelistDatabase.Note() 	
+    note.setName(requestData.getName())
+    note.setDescription(requestData.getDescription())
+    assert getNoteDatabase().addNote(note):
+        sendError "failedToSaveNotelist"
+    sendOk
+}
+
+PUT "/note/:id"
+{
+    var requestData = assert NoteRequest.forJsonString(req.getBodyString()):
+        sendError "invalidRequest"
+    var note = new NotelistDatabase.Note()
+    note.setName(requestData.getName())
+    note.setDescription(requestData.getDescription())
+    assert getNoteDatabase().updateNote(vars.getString("id"), note):
+        sendError "failedToUpdateNotelist"
+    sendOk
+}
+
+DELETE "/note/:id"
+{
+    assert getNoteDatabase().deleteNote(vars.getString("id")):
+        sendError "failedToDeleteNotelist"
+    sendOk
+}
+
